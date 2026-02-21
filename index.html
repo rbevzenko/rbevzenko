@@ -259,6 +259,32 @@
     }
     .sun-item { font-size: .82rem; color: var(--text-2); display: flex; align-items: center; gap: 5px; }
 
+    /* nearest-city badge */
+    .nearest-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      padding: 3px 9px;
+      background: rgba(96,165,250,.12);
+      border: 1px solid rgba(96,165,250,.35);
+      border-radius: 20px;
+      font-size: .68rem;
+      font-weight: 600;
+      color: #60a5fa;
+      letter-spacing: .2px;
+      animation: fadeUp .5s ease;
+    }
+
+    /* pulse on top accent bar for nearest card */
+    .nearest::before {
+      animation: accentPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes accentPulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .45; }
+    }
+
     /* data fade-in on update */
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(6px); }
@@ -586,12 +612,61 @@ async function refreshAll() {
   btn.disabled = false;
 }
 
+/* ── GEOLOCATION ─────────────────────────────────────────────────── */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+          * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function reorderByLocation(userLat, userLon) {
+  /* sort CITIES in-place by distance to user */
+  CITIES.sort((a, b) =>
+    haversineKm(userLat, userLon, a.lat, a.lon) -
+    haversineKm(userLat, userLon, b.lat, b.lon)
+  );
+
+  /* reorder DOM cards to match sorted array */
+  const grid = document.querySelector('.grid');
+  CITIES.forEach(city => grid.appendChild(document.getElementById(`card-${city.id}`)));
+
+  /* mark the nearest card */
+  const nearest = CITIES[0];
+  const card = document.getElementById(`card-${nearest.id}`);
+  card.classList.add('nearest');
+
+  if (!card.querySelector('.nearest-badge')) {
+    const badge = document.createElement('div');
+    badge.className = 'nearest-badge';
+    const km = Math.round(haversineKm(userLat, userLon, nearest.lat, nearest.lon));
+    badge.textContent = km < 80 ? '📍 Вы здесь' : `📍 Ближайший · ${km} км`;
+    /* insert after the date line */
+    const dateEl = document.getElementById(`date-${nearest.id}`);
+    dateEl.insertAdjacentElement('afterend', badge);
+  }
+}
+
+function detectLocation() {
+  if (!('geolocation' in navigator)) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => reorderByLocation(pos.coords.latitude, pos.coords.longitude),
+    ()  => { /* permission denied or error — keep default order silently */ },
+    { timeout: 8000 }
+  );
+}
+
 /* ── INIT ────────────────────────────────────────────────────────── */
 tickClocks();
 setInterval(tickClocks, 1000);
 
 refreshAll();
 setInterval(refreshAll, 5 * 60 * 1000);    /* auto-refresh every 5 min */
+
+detectLocation();   /* reorder cards by proximity after geolocation resolves */
 
 /* ── SERVICE WORKER ──────────────────────────────────────────────── */
 if ('serviceWorker' in navigator) {
