@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мониторинг погоды</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:    #0d0d14;
+      --bg-card:       #16161f;
+      --border:        #252535;
+      --text-1:        #e2e8f0;
+      --text-2:        #8892a4;
+      --blue:          #3b82f6;
+      --green:         #22c55e;
+      --orange:        #f97316;
+      --red:           #ef4444;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-1);
+      min-height: 100vh;
+      padding: 32px 16px 48px;
+    }
+
+    /* ── HEADER ──────────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    header h1 {
+      font-size: clamp(1.5rem, 4vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 14px;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    #lastUpdated {
+      font-size: 0.82rem;
+      color: var(--text-2);
+    }
+
+    #refreshBtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      background: rgba(96,165,250,.12);
+      border: 1px solid rgba(96,165,250,.3);
+      border-radius: 8px;
+      color: #60a5fa;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background .2s, transform .15s;
+    }
+    #refreshBtn:hover  { background: rgba(96,165,250,.22); transform: translateY(-1px); }
+    #refreshBtn:active { transform: translateY(0); }
+    #refreshBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .spin-icon { display: inline-block; }
+    #refreshBtn.busy .spin-icon { animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── ERROR BANNER ────────────────────────────────────────── */
+    #errorBanner {
+      display: none;
+      max-width: 900px;
+      margin: 0 auto 24px;
+      padding: 14px 20px;
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.3);
+      border-radius: 12px;
+      color: #fca5a5;
+      font-size: .85rem;
+      text-align: center;
+    }
+    #errorBanner.show { display: block; }
+
+    /* ── GRID ────────────────────────────────────────────────── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; max-width: 460px; }
+    }
+
+    /* ── CARD ────────────────────────────────────────────────── */
+    .card {
+      position: relative;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      overflow: hidden;
+      transition: transform .25s, box-shadow .25s, border-color .4s;
+      box-shadow: 0 4px 20px rgba(0,0,0,.35);
+    }
+    .card:hover { transform: translateY(-5px); box-shadow: 0 10px 36px rgba(0,0,0,.5); }
+
+    /* top accent bar */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--accent, var(--green));
+      border-radius: 20px 20px 0 0;
+      transition: background .4s;
+    }
+
+    /* subtle glow under the bar */
+    .card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 60px;
+      background: radial-gradient(ellipse at 50% 0%, var(--accent, var(--green)) 0%, transparent 70%);
+      opacity: .07;
+      transition: background .4s;
+      pointer-events: none;
+    }
+
+    /* temperature-driven accent classes */
+    .cold   { --accent: var(--blue);   border-color: rgba(59,130,246,.25); }
+    .cool   { --accent: var(--green);  border-color: rgba(34,197, 94,.25); }
+    .warm   { --accent: var(--orange); border-color: rgba(249,115, 22,.25); }
+    .hot    { --accent: var(--red);    border-color: rgba(239, 68, 68,.25); }
+
+    /* loading overlay */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(13,13,20,.75);
+      backdrop-filter: blur(3px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s;
+      z-index: 10;
+    }
+    .card.loading .overlay { opacity: 1; pointer-events: auto; }
+
+    .loader {
+      width: 38px; height: 38px;
+      border: 3px solid rgba(255,255,255,.1);
+      border-top-color: #60a5fa;
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+
+    /* ── CARD CONTENT ────────────────────────────────────────── */
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+
+    .city-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .flag { font-size: 1.3rem; }
+
+    .local-time {
+      font-size: 0.75rem;
+      color: var(--text-2);
+      margin-top: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .weather-emoji {
+      font-size: 2.8rem;
+      line-height: 1;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.4));
+    }
+
+    /* temperature */
+    .temp-row { display: flex; align-items: baseline; gap: 2px; margin-bottom: 4px; }
+    .temp-main { font-size: 3.4rem; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+    .temp-unit { font-size: 1.5rem; font-weight: 400; }
+    .feels-like { font-size: .8rem; color: var(--text-2); margin-bottom: 10px; }
+    .weather-desc { font-size: .95rem; font-weight: 500; color: var(--text-2); margin-bottom: 18px; }
+
+    /* stats */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 10px;
+      padding: 9px 10px;
+    }
+    .stat-label { font-size: .65rem; color: var(--text-2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+    .stat-val   { font-size: .88rem; font-weight: 600; }
+
+    /* sun times */
+    .sun-row {
+      display: flex;
+      gap: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .sun-item { font-size: .82rem; color: var(--text-2); display: flex; align-items: center; gap: 5px; }
+
+    /* data fade-in on update */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .updated { animation: fadeUp .4s ease; }
+
+    /* ── FOOTER ──────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      margin-top: 44px;
+      font-size: .78rem;
+      color: var(--text-2);
+    }
+    footer a { color: #60a5fa; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🌍 Мониторинг погоды</h1>
+  <div class="header-controls">
+    <span id="lastUpdated">Ожидание данных…</span>
+    <button id="refreshBtn" onclick="refreshAll()">
+      <span class="spin-icon">↻</span> Обновить сейчас
+    </button>
+  </div>
+</header>
+
+<div id="errorBanner">⚠️ Не удалось получить данные о погоде. Проверьте подключение к интернету и попробуйте снова.</div>
+
+<div class="grid">
+  <!-- ── Moscow ── -->
+  <div class="card loading" id="card-moscow">
+    <div class="overlay"><div class="loader"></div></div>
+    <div class="card-head">
+      <div>
+        <div class="city-name"><span class="flag">🇷🇺</span> Москва</div>
+        <div class="local-time" id="time-moscow">--:--:--</div>
+      </div>
+      <div class="weather-emoji" id="icon-moscow">…</div>
+    </div>
+    <div class="temp-row">
+      <span class="temp-main" id="temp-moscow">--</span>
+      <span class="temp-unit">°C</span>
+    </div>
+    <div class="feels-like"  id="feels-moscow">Ощущается как --°C</div>
+    <div class="weather-desc" id="desc-moscow">Загрузка…</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">💧 Влажность</div><div class="stat-val" id="hum-moscow">--%</div></div>
+      <div class="stat"><div class="stat-label">💨 Ветер</div><div class="stat-val" id="wind-moscow">--</div></div>
+      <div class="stat"><div class="stat-label">🌡 Давление</div><div class="stat-val" id="pres-moscow">--</div></div>
+    </div>
+    <div class="sun-row">
+      <div class="sun-item">🌅 <span id="rise-moscow">--:--</span></div>
+      <div class="sun-item">🌇 <span id="set-moscow">--:--</span></div>
+    </div>
+  </div>
+
+  <!-- ── Famagusta ── -->
+  <div class="card loading" id="card-famagusta">
+    <div class="overlay"><div class="loader"></div></div>
+    <div class="card-head">
+      <div>
+        <div class="city-name"><span class="flag">🇨🇾</span> Фамагуста</div>
+        <div class="local-time" id="time-famagusta">--:--:--</div>
+      </div>
+      <div class="weather-emoji" id="icon-famagusta">…</div>
+    </div>
+    <div class="temp-row">
+      <span class="temp-main" id="temp-famagusta">--</span>
+      <span class="temp-unit">°C</span>
+    </div>
+    <div class="feels-like"  id="feels-famagusta">Ощущается как --°C</div>
+    <div class="weather-desc" id="desc-famagusta">Загрузка…</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">💧 Влажность</div><div class="stat-val" id="hum-famagusta">--%</div></div>
+      <div class="stat"><div class="stat-label">💨 Ветер</div><div class="stat-val" id="wind-famagusta">--</div></div>
+      <div class="stat"><div class="stat-label">🌡 Давление</div><div class="stat-val" id="pres-famagusta">--</div></div>
+    </div>
+    <div class="sun-row">
+      <div class="sun-item">🌅 <span id="rise-famagusta">--:--</span></div>
+      <div class="sun-item">🌇 <span id="set-famagusta">--:--</span></div>
+    </div>
+  </div>
+
+  <!-- ── Barcelona ── -->
+  <div class="card loading" id="card-barcelona">
+    <div class="overlay"><div class="loader"></div></div>
+    <div class="card-head">
+      <div>
+        <div class="city-name"><span class="flag">🇪🇸</span> Барселона</div>
+        <div class="local-time" id="time-barcelona">--:--:--</div>
+      </div>
+      <div class="weather-emoji" id="icon-barcelona">…</div>
+    </div>
+    <div class="temp-row">
+      <span class="temp-main" id="temp-barcelona">--</span>
+      <span class="temp-unit">°C</span>
+    </div>
+    <div class="feels-like"  id="feels-barcelona">Ощущается как --°C</div>
+    <div class="weather-desc" id="desc-barcelona">Загрузка…</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">💧 Влажность</div><div class="stat-val" id="hum-barcelona">--%</div></div>
+      <div class="stat"><div class="stat-label">💨 Ветер</div><div class="stat-val" id="wind-barcelona">--</div></div>
+      <div class="stat"><div class="stat-label">🌡 Давление</div><div class="stat-val" id="pres-barcelona">--</div></div>
+    </div>
+    <div class="sun-row">
+      <div class="sun-item">🌅 <span id="rise-barcelona">--:--</span></div>
+      <div class="sun-item">🌇 <span id="set-barcelona">--:--</span></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Данные: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo API</a>
+  &nbsp;·&nbsp; Автообновление каждые 10 минут
+</footer>
+
+<script>
+'use strict';
+
+/* ── CONFIG ──────────────────────────────────────────────────────── */
+const CITIES = [
+  { id: 'moscow',    name: 'Москва',    lat: 55.7558, lon: 37.6173, tz: 'Europe/Moscow'  },
+  { id: 'famagusta', name: 'Фамагуста', lat: 35.1174, lon: 33.9391, tz: 'Asia/Famagusta' },
+  { id: 'barcelona', name: 'Барселона', lat: 41.3874, lon:  2.1686, tz: 'Europe/Madrid'  },
+];
+
+/* WMO weather-code → Russian description + emoji */
+const WMO = {
+    0: ['Ясно',                    '☀️'],
+    1: ['Преимущественно ясно',    '🌤️'],
+    2: ['Переменная облачность',   '⛅'],
+    3: ['Пасмурно',                '☁️'],
+   45: ['Туман',                   '🌫️'],
+   48: ['Оседающая изморозь',      '🌫️'],
+   51: ['Слабая морось',           '🌦️'],
+   53: ['Умеренная морось',        '🌦️'],
+   55: ['Сильная морось',          '🌧️'],
+   56: ['Ледяная морось',          '🌨️'],
+   57: ['Сильная ледяная морось',  '🌨️'],
+   61: ['Слабый дождь',            '🌧️'],
+   63: ['Умеренный дождь',         '🌧️'],
+   65: ['Сильный дождь',           '🌧️'],
+   66: ['Ледяной дождь',           '🌨️'],
+   67: ['Сильный ледяной дождь',   '🌨️'],
+   71: ['Слабый снегопад',         '❄️'],
+   73: ['Умеренный снегопад',      '❄️'],
+   75: ['Сильный снегопад',        '🌨️'],
+   77: ['Снежная крупа',           '🌨️'],
+   80: ['Слабый ливень',           '🌦️'],
+   81: ['Умеренный ливень',        '🌧️'],
+   82: ['Сильный ливень',          '⛈️'],
+   85: ['Снежный ливень',          '🌨️'],
+   86: ['Сильный снежный ливень',  '🌨️'],
+   95: ['Гроза',                   '⛈️'],
+   96: ['Гроза с градом',          '⛈️'],
+   99: ['Гроза с сильным градом',  '⛈️'],
+};
+
+/* ── HELPERS ─────────────────────────────────────────────────────── */
+function wmoInfo(code) {
+  return WMO[code] ?? ['Неизвестно', '🌡️'];
+}
+
+function tempClass(t) {
+  if (t <   0) return 'cold';
+  if (t <  15) return 'cool';
+  if (t <  30) return 'warm';
+  return 'hot';
+}
+
+function fmtSign(n) {
+  return n > 0 ? `+${n}` : String(n);
+}
+
+/* Extract "HH:MM" from API datetime string "YYYY-MM-DDTHH:MM" */
+function sunTime(iso) {
+  if (!iso) return '--:--';
+  const t = iso.split('T')[1];
+  return t ? t.slice(0, 5) : '--:--';
+}
+
+function localTime(tz) {
+  return new Date().toLocaleTimeString('ru-RU', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    timeZone: tz,
+  });
+}
+
+/* hPa → mm Hg */
+function toMmHg(hpa) {
+  return Math.round(hpa * 0.750062);
+}
+
+/* ── FETCH ───────────────────────────────────────────────────────── */
+async function fetchCity(city) {
+  const p = new URLSearchParams({
+    latitude:  city.lat,
+    longitude: city.lon,
+    current: [
+      'temperature_2m',
+      'apparent_temperature',
+      'relative_humidity_2m',
+      'weather_code',
+      'wind_speed_10m',
+      'surface_pressure',
+    ].join(','),
+    daily: 'sunrise,sunset',
+    timezone: city.tz,
+    forecast_days: 1,
+  });
+  const res = await fetch(`https://api.open-meteo.com/v1/forecast?${p}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/* ── RENDER ──────────────────────────────────────────────────────── */
+function renderCard(city, data) {
+  const c  = data.current;
+  const d  = data.daily;
+  const id = city.id;
+
+  const temp    = Math.round(c.temperature_2m);
+  const feels   = Math.round(c.apparent_temperature);
+  const hum     = c.relative_humidity_2m;
+  const wind    = Math.round(c.wind_speed_10m);
+  const pres    = toMmHg(c.surface_pressure);
+  const code    = c.weather_code;
+  const [desc, icon] = wmoInfo(code);
+
+  /* card element */
+  const card = document.getElementById(`card-${id}`);
+  card.classList.remove('loading', 'cold', 'cool', 'warm', 'hot');
+  card.classList.add(tempClass(temp));
+
+  /* flash animation */
+  const content = card.querySelectorAll(
+    '.card-head, .temp-row, .feels-like, .weather-desc, .stats, .sun-row'
+  );
+  content.forEach(el => {
+    el.classList.remove('updated');
+    void el.offsetWidth;          // reflow to restart animation
+    el.classList.add('updated');
+  });
+
+  /* fill data */
+  document.getElementById(`icon-${id}`).textContent    = icon;
+  document.getElementById(`temp-${id}`).textContent    = fmtSign(temp);
+  document.getElementById(`feels-${id}`).textContent   = `Ощущается как ${fmtSign(feels)}°C`;
+  document.getElementById(`desc-${id}`).textContent    = desc;
+  document.getElementById(`hum-${id}`).textContent     = `${hum}%`;
+  document.getElementById(`wind-${id}`).textContent    = `${wind} км/ч`;
+  document.getElementById(`pres-${id}`).textContent    = `${pres} мм`;
+
+  /* sunrise / sunset – already in local tz from API */
+  document.getElementById(`rise-${id}`).textContent = sunTime(d.sunrise?.[0]);
+  document.getElementById(`set-${id}`).textContent  = sunTime(d.sunset?.[0]);
+}
+
+/* ── CLOCKS ──────────────────────────────────────────────────────── */
+function tickClocks() {
+  CITIES.forEach(c => {
+    const el = document.getElementById(`time-${c.id}`);
+    if (el) el.textContent = localTime(c.tz);
+  });
+}
+
+/* ── REFRESH ─────────────────────────────────────────────────────── */
+async function refreshAll() {
+  const btn    = document.getElementById('refreshBtn');
+  const banner = document.getElementById('errorBanner');
+
+  banner.classList.remove('show');
+  btn.classList.add('busy');
+  btn.disabled = true;
+
+  /* show loading overlay on every card */
+  CITIES.forEach(c => document.getElementById(`card-${c.id}`).classList.add('loading'));
+
+  let anyError = false;
+  await Promise.allSettled(
+    CITIES.map(async city => {
+      try {
+        const data = await fetchCity(city);
+        renderCard(city, data);
+      } catch (err) {
+        console.error(`[${city.name}]`, err);
+        anyError = true;
+        /* keep the old data visible; just remove loading */
+        document.getElementById(`card-${city.id}`).classList.remove('loading');
+      }
+    })
+  );
+
+  if (anyError) banner.classList.add('show');
+
+  const now = new Date().toLocaleTimeString('ru-RU', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  document.getElementById('lastUpdated').textContent = `Обновлено: ${now}`;
+
+  btn.classList.remove('busy');
+  btn.disabled = false;
+}
+
+/* ── INIT ────────────────────────────────────────────────────────── */
+tickClocks();
+setInterval(tickClocks, 1000);
+
+refreshAll();
+setInterval(refreshAll, 10 * 60 * 1000);   /* auto-refresh every 10 min */
+</script>
+</body>
+</html>
