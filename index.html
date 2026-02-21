@@ -259,6 +259,168 @@
     }
     .sun-item { font-size: .82rem; color: var(--text-2); display: flex; align-items: center; gap: 5px; }
 
+    /* click hint */
+    .card { cursor: pointer; }
+    .forecast-hint {
+      margin-top: 13px;
+      text-align: center;
+      font-size: .7rem;
+      color: var(--text-2);
+      opacity: 0;
+      transition: opacity .2s;
+      letter-spacing: .2px;
+    }
+    .card:hover .forecast-hint { opacity: 1; }
+
+    /* ── MODAL ────────────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(5,5,12,.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+
+    .modal-box {
+      background: #18182a;
+      border: 1px solid #2a2a42;
+      border-radius: 22px;
+      padding: 26px;
+      width: 100%;
+      max-width: 700px;
+      max-height: 88vh;
+      overflow-y: auto;
+      animation: slideUp .3s ease;
+      scrollbar-width: thin;
+      scrollbar-color: #2a2a42 transparent;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(18px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .modal-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .modal-flag {
+      width: 30px; height: 22px;
+      border-radius: 3px;
+      object-fit: cover;
+      box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    }
+    .modal-subtitle { font-size: .78rem; color: var(--text-2); font-weight: 400; margin-top: 2px; }
+    .modal-close {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
+      color: var(--text-2);
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background .2s, color .2s;
+      flex-shrink: 0;
+    }
+    .modal-close:hover { background: rgba(255,255,255,.12); color: var(--text-1); }
+
+    /* 7-day forecast grid */
+    .forecast-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+    @media (max-width: 600px) {
+      .forecast-grid {
+        grid-template-columns: 1fr;
+      }
+      .forecast-day {
+        display: grid;
+        grid-template-columns: 60px 2rem 1fr 1fr;
+        align-items: center;
+        gap: 10px;
+        text-align: left;
+        padding: 10px 14px;
+      }
+      .fc-icon { margin: 0; font-size: 1.5rem; }
+      .fc-date, .fc-wind, .fc-precip { display: none; }
+    }
+
+    .forecast-day {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.055);
+      border-radius: 13px;
+      padding: 13px 6px;
+      text-align: center;
+      transition: background .2s;
+    }
+    .forecast-day.today { border-color: rgba(96,165,250,.35); background: rgba(96,165,250,.05); }
+    .forecast-day:hover { background: rgba(255,255,255,.06); }
+
+    .fc-dayname { font-size: .68rem; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px; }
+    .fc-date    { font-size: .63rem; color: var(--text-2); margin-bottom: 8px; }
+    .fc-icon    { font-size: 1.75rem; margin-bottom: 8px; line-height: 1; }
+    .fc-temps   { font-size: .82rem; margin-bottom: 5px; }
+    .fc-max     { font-weight: 700; color: var(--text-1); }
+    .fc-sep     { color: var(--border); }
+    .fc-min     { color: var(--text-2); }
+    .fc-precip  { font-size: .65rem; color: #60a5fa; min-height: 1em; }
+    .fc-wind    { font-size: .63rem; color: var(--text-2); margin-top: 3px; }
+
+    .modal-loading {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 150px; color: var(--text-2); gap: 12px; font-size: .9rem;
+    }
+    .modal-loader {
+      width: 28px; height: 28px;
+      border: 3px solid rgba(255,255,255,.1);
+      border-top-color: #60a5fa;
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+
+    /* nearest-city badge */
+    .nearest-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      padding: 3px 9px;
+      background: rgba(96,165,250,.12);
+      border: 1px solid rgba(96,165,250,.35);
+      border-radius: 20px;
+      font-size: .68rem;
+      font-weight: 600;
+      color: #60a5fa;
+      letter-spacing: .2px;
+      animation: fadeUp .5s ease;
+    }
+
+    /* pulse on top accent bar for nearest card */
+    .nearest::before {
+      animation: accentPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes accentPulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .45; }
+    }
+
     /* data fade-in on update */
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(6px); }
@@ -293,7 +455,7 @@
 
 <div class="grid">
   <!-- ── Moscow ── -->
-  <div class="card loading" id="card-moscow">
+  <div class="card loading" id="card-moscow" data-city="moscow" onclick="openForecast(getCityById('moscow'))">
     <div class="overlay"><div class="loader"></div></div>
     <div class="card-head">
       <div>
@@ -321,10 +483,11 @@
       <div class="sun-item">🌅 <span id="rise-moscow">--:--</span></div>
       <div class="sun-item">🌇 <span id="set-moscow">--:--</span></div>
     </div>
+    <div class="forecast-hint">Прогноз на 7 дней →</div>
   </div>
 
   <!-- ── Famagusta ── -->
-  <div class="card loading" id="card-famagusta">
+  <div class="card loading" id="card-famagusta" data-city="famagusta" onclick="openForecast(getCityById('famagusta'))">
     <div class="overlay"><div class="loader"></div></div>
     <div class="card-head">
       <div>
@@ -352,10 +515,11 @@
       <div class="sun-item">🌅 <span id="rise-famagusta">--:--</span></div>
       <div class="sun-item">🌇 <span id="set-famagusta">--:--</span></div>
     </div>
+    <div class="forecast-hint">Прогноз на 7 дней →</div>
   </div>
 
   <!-- ── Barcelona ── -->
-  <div class="card loading" id="card-barcelona">
+  <div class="card loading" id="card-barcelona" data-city="barcelona" onclick="openForecast(getCityById('barcelona'))">
     <div class="overlay"><div class="loader"></div></div>
     <div class="card-head">
       <div>
@@ -383,6 +547,24 @@
       <div class="sun-item">🌅 <span id="rise-barcelona">--:--</span></div>
       <div class="sun-item">🌇 <span id="set-barcelona">--:--</span></div>
     </div>
+    <div class="forecast-hint">Прогноз на 7 дней →</div>
+  </div>
+</div>
+
+<!-- ── FORECAST MODAL ──────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modal" onclick="handleModalClick(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">
+          <img class="modal-flag" id="modal-flag" src="" alt="" />
+          <span id="modal-city-name"></span>
+        </div>
+        <div class="modal-subtitle">Прогноз на 7 дней</div>
+      </div>
+      <button class="modal-close" onclick="closeForecast()">✕</button>
+    </div>
+    <div id="modal-body"></div>
   </div>
 </div>
 
@@ -396,10 +578,12 @@
 
 /* ── CONFIG ──────────────────────────────────────────────────────── */
 const CITIES = [
-  { id: 'moscow',    name: 'Москва',    lat: 55.7558, lon: 37.6173, tz: 'Europe/Moscow'  },
-  { id: 'famagusta', name: 'Фамагуста', lat: 35.1174, lon: 33.9391, tz: 'Asia/Famagusta' },
-  { id: 'barcelona', name: 'Барселона', lat: 41.3874, lon:  2.1686, tz: 'Europe/Madrid'  },
+  { id: 'moscow',    name: 'Москва',    lat: 55.7558, lon: 37.6173, tz: 'Europe/Moscow',  flag: 'https://flagcdn.com/32x24/ru.png' },
+  { id: 'famagusta', name: 'Фамагуста', lat: 35.1174, lon: 33.9391, tz: 'Asia/Famagusta', flag: 'https://flagcdn.com/32x24/cy.png' },
+  { id: 'barcelona', name: 'Барселона', lat: 41.3874, lon:  2.1686, tz: 'Europe/Madrid',  flag: 'https://flagcdn.com/32x24/es.png' },
 ];
+
+function getCityById(id) { return CITIES.find(c => c.id === id); }
 
 /* WMO weather-code → Russian description + emoji */
 const WMO = {
@@ -586,12 +770,142 @@ async function refreshAll() {
   btn.disabled = false;
 }
 
+/* ── FORECAST MODAL ──────────────────────────────────────────────── */
+async function fetchForecast(city) {
+  const p = new URLSearchParams({
+    latitude:  city.lat,
+    longitude: city.lon,
+    daily: [
+      'temperature_2m_max', 'temperature_2m_min',
+      'weather_code', 'precipitation_sum', 'wind_speed_10m_max',
+    ].join(','),
+    timezone:     city.tz,
+    forecast_days: 7,
+  });
+  const res = await fetch(`https://api.open-meteo.com/v1/forecast?${p}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderForecast(data, tz) {
+  const d = data.daily;
+  let html = '<div class="forecast-grid">';
+  d.time.forEach((dateStr, i) => {
+    const date    = new Date(dateStr + 'T12:00:00');
+    const dayName = i === 0 ? 'Сегодня'
+                  : date.toLocaleDateString('ru-RU', { weekday: 'short', timeZone: tz });
+    const dayDate = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: tz });
+    const [, icon] = wmoInfo(d.weather_code[i]);
+    const [desc]   = wmoInfo(d.weather_code[i]);
+    const tMax   = Math.round(d.temperature_2m_max[i]);
+    const tMin   = Math.round(d.temperature_2m_min[i]);
+    const precip = (d.precipitation_sum[i] ?? 0).toFixed(1);
+    const wind   = Math.round(d.wind_speed_10m_max[i]);
+
+    html += `
+      <div class="forecast-day${i === 0 ? ' today' : ''}">
+        <div class="fc-dayname">${dayName}</div>
+        <div class="fc-date">${dayDate}</div>
+        <div class="fc-icon" title="${desc}">${icon}</div>
+        <div class="fc-temps">
+          <span class="fc-max">${fmtSign(tMax)}°</span>
+          <span class="fc-sep"> / </span>
+          <span class="fc-min">${fmtSign(tMin)}°</span>
+        </div>
+        <div class="fc-precip">${parseFloat(precip) > 0 ? '💧 ' + precip + ' мм' : ''}</div>
+        <div class="fc-wind">💨 ${wind} км/ч</div>
+      </div>`;
+  });
+  html += '</div>';
+  document.getElementById('modal-body').innerHTML = html;
+}
+
+async function openForecast(city) {
+  const modal = document.getElementById('modal');
+  const body  = document.getElementById('modal-body');
+
+  document.getElementById('modal-flag').src        = city.flag;
+  document.getElementById('modal-flag').alt        = city.name;
+  document.getElementById('modal-city-name').textContent = city.name;
+
+  body.innerHTML = '<div class="modal-loading"><div class="modal-loader"></div> Загрузка…</div>';
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const data = await fetchForecast(city);
+    renderForecast(data, city.tz);
+  } catch {
+    body.innerHTML = '<div class="modal-loading" style="color:#fca5a5">⚠️ Не удалось загрузить прогноз</div>';
+  }
+}
+
+function closeForecast() {
+  document.getElementById('modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleModalClick(e) {
+  if (e.target === document.getElementById('modal')) closeForecast();
+}
+
+/* ── GEOLOCATION ─────────────────────────────────────────────────── */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+          * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function reorderByLocation(userLat, userLon) {
+  /* sort CITIES in-place by distance to user */
+  CITIES.sort((a, b) =>
+    haversineKm(userLat, userLon, a.lat, a.lon) -
+    haversineKm(userLat, userLon, b.lat, b.lon)
+  );
+
+  /* reorder DOM cards to match sorted array */
+  const grid = document.querySelector('.grid');
+  CITIES.forEach(city => grid.appendChild(document.getElementById(`card-${city.id}`)));
+
+  /* mark the nearest card */
+  const nearest = CITIES[0];
+  const card = document.getElementById(`card-${nearest.id}`);
+  card.classList.add('nearest');
+
+  if (!card.querySelector('.nearest-badge')) {
+    const badge = document.createElement('div');
+    badge.className = 'nearest-badge';
+    const km = Math.round(haversineKm(userLat, userLon, nearest.lat, nearest.lon));
+    badge.textContent = km < 80 ? '📍 Вы здесь' : `📍 Ближайший · ${km} км`;
+    /* insert after the date line */
+    const dateEl = document.getElementById(`date-${nearest.id}`);
+    dateEl.insertAdjacentElement('afterend', badge);
+  }
+}
+
+function detectLocation() {
+  if (!('geolocation' in navigator)) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => reorderByLocation(pos.coords.latitude, pos.coords.longitude),
+    ()  => { /* permission denied or error — keep default order silently */ },
+    { timeout: 8000 }
+  );
+}
+
 /* ── INIT ────────────────────────────────────────────────────────── */
 tickClocks();
 setInterval(tickClocks, 1000);
 
 refreshAll();
 setInterval(refreshAll, 5 * 60 * 1000);    /* auto-refresh every 5 min */
+
+detectLocation();   /* reorder cards by proximity after geolocation resolves */
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeForecast(); });
 
 /* ── SERVICE WORKER ──────────────────────────────────────────────── */
 if ('serviceWorker' in navigator) {
