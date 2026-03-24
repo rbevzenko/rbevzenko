@@ -327,6 +327,71 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.4);
     }
     .modal-subtitle { font-size: .78rem; color: var(--text-2); font-weight: 400; margin-top: 2px; }
+
+    /* ── TABS ─────────────────────────────────────────────────── */
+    .modal-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 18px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 11px;
+      padding: 4px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 7px 14px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-2);
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .18s, color .18s;
+      letter-spacing: .2px;
+    }
+    .tab-btn.active {
+      background: rgba(96,165,250,.18);
+      color: #60a5fa;
+    }
+    .tab-btn:hover:not(.active) { background: rgba(255,255,255,.06); color: var(--text-1); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── HOURLY SCROLL ────────────────────────────────────────── */
+    .hourly-scroll {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: #2a2a42 transparent;
+    }
+    .hourly-scroll::-webkit-scrollbar { height: 4px; }
+    .hourly-scroll::-webkit-scrollbar-thumb { background: #2a2a42; border-radius: 4px; }
+
+    .hour-card {
+      flex-shrink: 0;
+      width: 66px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.055);
+      border-radius: 12px;
+      padding: 10px 6px;
+      text-align: center;
+      transition: background .2s;
+    }
+    .hour-card.now {
+      border-color: rgba(96,165,250,.4);
+      background: rgba(96,165,250,.07);
+    }
+    .hour-card:hover { background: rgba(255,255,255,.06); }
+    .hc-time   { font-size: .65rem; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 6px; }
+    .hc-icon   { font-size: 1.5rem; line-height: 1; margin-bottom: 6px; }
+    .hc-temp   { font-size: .85rem; font-weight: 700; color: var(--text-1); margin-bottom: 4px; }
+    .hc-precip { font-size: .63rem; color: #60a5fa; min-height: 1em; }
+
     .modal-close {
       background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.08);
@@ -560,11 +625,16 @@
           <img class="modal-flag" id="modal-flag" src="" alt="" />
           <span id="modal-city-name"></span>
         </div>
-        <div class="modal-subtitle">Прогноз на 7 дней</div>
+        <div class="modal-subtitle" id="modal-subtitle">Прогноз</div>
       </div>
       <button class="modal-close" onclick="closeForecast()">✕</button>
     </div>
-    <div id="modal-body"></div>
+    <div class="modal-tabs">
+      <button class="tab-btn active" id="tab-24h" onclick="switchTab('24h')">⏱ 24 часа</button>
+      <button class="tab-btn"        id="tab-7d"  onclick="switchTab('7d')">📅 7 дней</button>
+    </div>
+    <div id="panel-24h" class="tab-panel active"></div>
+    <div id="panel-7d"  class="tab-panel"></div>
   </div>
 </div>
 
@@ -771,6 +841,15 @@ async function refreshAll() {
 }
 
 /* ── FORECAST MODAL ──────────────────────────────────────────────── */
+
+/* ── TAB SWITCH ──────────────────────────────────────────────────── */
+function switchTab(tab) {
+  ['24h', '7d'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    document.getElementById(`panel-${t}`).classList.toggle('active', t === tab);
+  });
+}
+
 async function fetchForecast(city) {
   const p = new URLSearchParams({
     latitude:  city.lat,
@@ -817,26 +896,90 @@ function renderForecast(data, tz) {
       </div>`;
   });
   html += '</div>';
-  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('panel-7d').innerHTML = html;
+}
+
+/* ── FETCH HOURLY ────────────────────────────────────────────────── */
+async function fetchHourly(city) {
+  const p = new URLSearchParams({
+    latitude:  city.lat,
+    longitude: city.lon,
+    hourly: ['temperature_2m', 'weather_code', 'precipitation_probability'].join(','),
+    timezone:      city.tz,
+    forecast_days: 2,   /* 48 hrs — we slice to next 24 */
+  });
+  const res = await fetch(`https://api.open-meteo.com/v1/forecast?${p}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderHourly(data, tz) {
+  const h   = data.hourly;
+  const now = new Date();
+
+  /* find index of the current hour */
+  const currentIso = now.toISOString().slice(0, 13);   /* "YYYY-MM-DDTHH" */
+  let startIdx = h.time.findIndex(t => t.startsWith(currentIso));
+  if (startIdx < 0) startIdx = 0;
+
+  const hours = h.time.slice(startIdx, startIdx + 24);
+
+  let html = '<div class="hourly-scroll">';
+  hours.forEach((isoTime, i) => {
+    const dt       = new Date(isoTime);
+    const label    = i === 0 ? 'Сейчас'
+      : dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+    const idx      = startIdx + i;
+    const [, icon] = wmoInfo(h.weather_code[idx]);
+    const temp     = Math.round(h.temperature_2m[idx]);
+    const precip   = h.precipitation_probability[idx] ?? 0;
+
+    html += `
+      <div class="hour-card${i === 0 ? ' now' : ''}">
+        <div class="hc-time">${label}</div>
+        <div class="hc-icon">${icon}</div>
+        <div class="hc-temp">${fmtSign(temp)}°</div>
+        <div class="hc-precip">${precip > 0 ? '💧 ' + precip + '%' : ''}</div>
+      </div>`;
+  });
+  html += '</div>';
+  document.getElementById('panel-24h').innerHTML = html;
 }
 
 async function openForecast(city) {
   const modal = document.getElementById('modal');
-  const body  = document.getElementById('modal-body');
 
-  document.getElementById('modal-flag').src        = city.flag;
-  document.getElementById('modal-flag').alt        = city.name;
+  document.getElementById('modal-flag').src              = city.flag;
+  document.getElementById('modal-flag').alt              = city.name;
   document.getElementById('modal-city-name').textContent = city.name;
 
-  body.innerHTML = '<div class="modal-loading"><div class="modal-loader"></div> Загрузка…</div>';
+  const loading = '<div class="modal-loading"><div class="modal-loader"></div> Загрузка…</div>';
+  document.getElementById('panel-24h').innerHTML = loading;
+  document.getElementById('panel-7d').innerHTML  = loading;
+
+  /* always open on 24h tab */
+  switchTab('24h');
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
 
-  try {
-    const data = await fetchForecast(city);
-    renderForecast(data, city.tz);
-  } catch {
-    body.innerHTML = '<div class="modal-loading" style="color:#fca5a5">⚠️ Не удалось загрузить прогноз</div>';
+  /* fetch both in parallel */
+  const [hourlyResult, forecastResult] = await Promise.allSettled([
+    fetchHourly(city),
+    fetchForecast(city),
+  ]);
+
+  if (hourlyResult.status === 'fulfilled') {
+    renderHourly(hourlyResult.value, city.tz);
+  } else {
+    document.getElementById('panel-24h').innerHTML =
+      '<div class="modal-loading" style="color:#fca5a5">⚠️ Не удалось загрузить почасовой прогноз</div>';
+  }
+
+  if (forecastResult.status === 'fulfilled') {
+    renderForecast(forecastResult.value, city.tz);
+  } else {
+    document.getElementById('panel-7d').innerHTML =
+      '<div class="modal-loading" style="color:#fca5a5">⚠️ Не удалось загрузить прогноз на 7 дней</div>';
   }
 }
 
