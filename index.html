@@ -798,11 +798,17 @@ function renderCard(city, data) {
   document.getElementById(`rise-${id}`).textContent = sunTime(d.sunrise?.[0]);
   document.getElementById(`set-${id}`).textContent  = sunTime(d.sunset?.[0]);
 
-  /* update background based on the nearest city (first in sorted CITIES) */
-  if (city.id === CITIES[0].id) WeatherBg.setType(wmoToWeather(code));
+  /* update background: collect all city codes, show most dramatic weather */
+  _bgCodes[city.id] = code;
+  const _bgPrio = { thunder:5, rain:4, snow:3, fog:2, cloudy:1, clear:1, none:0 };
+  const bestType = Object.values(_bgCodes)
+    .map(c => wmoToWeather(c))
+    .sort((a, b) => (_bgPrio[b] ?? 0) - (_bgPrio[a] ?? 0))[0] || 'none';
+  WeatherBg.setType(bestType);
 }
 
 /* ── WEATHER BACKGROUND ──────────────────────────────────────────── */
+const _bgCodes = {};   /* city.id → latest WMO code */
 const WeatherBg = (() => {
   const canvas = document.getElementById('weather-bg');
   const ctx    = canvas.getContext('2d');
@@ -844,6 +850,14 @@ const WeatherBg = (() => {
       vy:    (Math.random() - 0.5) * 0.08,
       alpha: Math.random() * 0.03 + 0.01,
     };
+    if (type === 'cloudy') return {
+      x:     Math.random() * W,
+      y:     Math.random() * H,
+      r:     Math.random() * 180 + 80,
+      vx:    (Math.random() - 0.5) * 0.18,
+      vy:    (Math.random() - 0.5) * 0.04,
+      alpha: Math.random() * 0.018 + 0.006,
+    };
     /* clear → twinkling stars */
     return {
       x:     Math.random() * W,
@@ -855,7 +869,7 @@ const WeatherBg = (() => {
   }
 
   function spawn() {
-    const n = { rain:130, thunder:130, snow:70, fog:22, clear:55 }[type] ?? 0;
+    const n = { rain:130, thunder:130, snow:70, fog:22, cloudy:14, clear:55 }[type] ?? 0;
     particles = Array.from({ length: n }, () => mkParticle(true));
   }
 
@@ -902,11 +916,12 @@ const WeatherBg = (() => {
       ctx.globalAlpha = 1;
     }
 
-    if (type === 'fog') {
+    if (type === 'fog' || type === 'cloudy') {
+      const col = type === 'fog' ? '200,215,235' : '150,170,210';
       particles.forEach(p => {
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-        g.addColorStop(0, `rgba(200,215,235,${p.alpha * 4})`);
-        g.addColorStop(1, 'rgba(200,215,235,0)');
+        g.addColorStop(0, `rgba(${col},${p.alpha * 4})`);
+        g.addColorStop(1, `rgba(${col},0)`);
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -949,15 +964,15 @@ const WeatherBg = (() => {
 
 /* WMO code → background type */
 function wmoToWeather(code) {
-  if (code === 0)                return 'clear';
-  if (code <= 3)                 return 'none';
+  if (code === 0)                 return 'clear';
+  if (code <= 3)                  return 'cloudy';
   if (code === 45 || code === 48) return 'fog';
-  if (code >= 51 && code <= 67)  return 'rain';
-  if (code >= 71 && code <= 77)  return 'snow';
-  if (code >= 80 && code <= 82)  return 'rain';
-  if (code === 85 || code === 86) return 'snow';
-  if (code >= 95)                return 'thunder';
-  return 'none';
+  if (code >= 51 && code <= 67)   return 'rain';
+  if (code >= 71 && code <= 77)   return 'snow';
+  if (code >= 80 && code <= 82)   return 'rain';
+  if (code === 85 || code === 86)  return 'snow';
+  if (code >= 95)                 return 'thunder';
+  return 'cloudy';
 }
 
 /* ── CLOCKS ──────────────────────────────────────────────────────── */
