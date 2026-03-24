@@ -914,22 +914,23 @@ async function fetchHourly(city) {
 }
 
 function renderHourly(data, tz) {
-  const h   = data.hourly;
-  const now = new Date();
+  const h = data.hourly;
 
-  /* find index of the current hour */
-  const currentIso = now.toISOString().slice(0, 13);   /* "YYYY-MM-DDTHH" */
+  /* API times are in city's local tz ("YYYY-MM-DDTHH:00").
+     Build the same format for "now" using the city timezone. */
+  const localNow  = new Date().toLocaleString('sv', { timeZone: tz }); /* "YYYY-MM-DD HH:MM:SS" */
+  const currentIso = localNow.slice(0, 13).replace(' ', 'T');          /* "YYYY-MM-DDTHH" */
+
   let startIdx = h.time.findIndex(t => t.startsWith(currentIso));
   if (startIdx < 0) startIdx = 0;
 
-  const hours = h.time.slice(startIdx, startIdx + 24);
-
   let html = '<div class="hourly-scroll">';
-  hours.forEach((isoTime, i) => {
-    const dt       = new Date(isoTime);
-    const label    = i === 0 ? 'Сейчас'
-      : dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-    const idx      = startIdx + i;
+  for (let i = 0; i < 24; i++) {
+    const idx  = startIdx + i;
+    if (idx >= h.time.length) break;
+
+    /* Extract HH:MM directly from the API string — no timezone conversion needed */
+    const label    = i === 0 ? 'Сейчас' : h.time[idx].slice(11, 16);
     const [, icon] = wmoInfo(h.weather_code[idx]);
     const temp     = Math.round(h.temperature_2m[idx]);
     const precip   = h.precipitation_probability[idx] ?? 0;
@@ -941,7 +942,7 @@ function renderHourly(data, tz) {
         <div class="hc-temp">${fmtSign(temp)}°</div>
         <div class="hc-precip">${precip > 0 ? '💧 ' + precip + '%' : ''}</div>
       </div>`;
-  });
+  }
   html += '</div>';
   document.getElementById('panel-24h').innerHTML = html;
 }
