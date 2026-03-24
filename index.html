@@ -36,15 +36,6 @@
       padding: 32px 16px 48px;
     }
 
-    /* ── WEATHER CANVAS ──────────────────────────────────────── */
-    #weather-bg {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 9998;
-      mix-blend-mode: screen;
-    }
-
     /* ── HEADER ──────────────────────────────────────────────── */
     header {
       text-align: center;
@@ -515,8 +506,6 @@
 </head>
 <body>
 
-<canvas id="weather-bg" aria-hidden="true"></canvas>
-
 <header>
   <h1>🌍 Мониторинг погоды</h1>
   <div class="header-controls">
@@ -796,182 +785,6 @@ function renderCard(city, data) {
   /* sunrise / sunset – already in local tz from API */
   document.getElementById(`rise-${id}`).textContent = sunTime(d.sunrise?.[0]);
   document.getElementById(`set-${id}`).textContent  = sunTime(d.sunset?.[0]);
-
-  /* update background: collect all city codes, show most dramatic weather */
-  _bgCodes[city.id] = code;
-  const _bgPrio = { thunder:5, rain:4, snow:3, fog:2, cloudy:1, clear:1, none:0 };
-  const bestType = Object.values(_bgCodes)
-    .map(c => wmoToWeather(c))
-    .sort((a, b) => (_bgPrio[b] ?? 0) - (_bgPrio[a] ?? 0))[0] || 'none';
-  WeatherBg.setType(bestType);
-}
-
-/* ── WEATHER BACKGROUND ──────────────────────────────────────────── */
-const _bgCodes = {};   /* city.id → latest WMO code */
-const WeatherBg = (() => {
-  const canvas = document.getElementById('weather-bg');
-  const ctx    = canvas.getContext('2d');
-  let W = 0, H = 0, particles = [], type = 'none', rafId = null, lightning = 0;
-
-  function resize() {
-    const dpr = window.devicePixelRatio || 1;
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width  = W * dpr;
-    canvas.height = H * dpr;
-    canvas.style.width  = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-
-  function mkParticle(born = false) {
-    if (type === 'rain' || type === 'thunder') return {
-      x:     Math.random() * W * 1.4 - W * 0.2,
-      y:     born ? Math.random() * H : -30,
-      len:   Math.random() * 25 + 15,
-      speed: Math.random() * 9 + 12,
-      alpha: Math.random() * 0.5 + 0.3,
-    };
-    if (type === 'snow') return {
-      x:     Math.random() * W,
-      y:     born ? Math.random() * H : -10,
-      r:     Math.random() * 3 + 1.5,
-      speed: Math.random() * 1.2 + 0.4,
-      drift: (Math.random() - 0.5) * 0.4,
-      phase: Math.random() * Math.PI * 2,
-      alpha: Math.random() * 0.4 + 0.5,
-    };
-    if (type === 'fog') return {
-      x:     Math.random() * W,
-      y:     Math.random() * H,
-      r:     Math.random() * 120 + 60,
-      vx:    (Math.random() - 0.5) * 0.35,
-      vy:    (Math.random() - 0.5) * 0.08,
-      alpha: Math.random() * 0.07 + 0.04,
-    };
-    if (type === 'cloudy') return {
-      x:     Math.random() * W,
-      y:     Math.random() * H,
-      r:     Math.random() * 180 + 80,
-      vx:    (Math.random() - 0.5) * 0.18,
-      vy:    (Math.random() - 0.5) * 0.04,
-      alpha: Math.random() * 0.04 + 0.02,
-    };
-    /* clear → twinkling stars */
-    return {
-      x:     Math.random() * W,
-      y:     Math.random() * H * 0.75,
-      r:     Math.random() * 1.4 + 0.4,
-      phase: Math.random() * Math.PI * 2,
-      speed: Math.random() * 0.015 + 0.004,
-    };
-  }
-
-  function spawn() {
-    const n = { rain:140, thunder:140, snow:80, fog:25, cloudy:16, clear:60 }[type] ?? 0;
-    particles = Array.from({ length: n }, () => mkParticle(true));
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-
-    if (type === 'rain' || type === 'thunder') {
-      ctx.strokeStyle = '#aed6f1';
-      ctx.lineWidth   = 1.5;
-      particles.forEach(p => {
-        ctx.globalAlpha = p.alpha;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - p.len * 0.18, p.y + p.len);
-        ctx.stroke();
-        p.y += p.speed;
-        p.x -= p.speed * 0.18;
-        if (p.y > H + 30) { p.y = -30; p.x = Math.random() * W * 1.4 - W * 0.2; }
-      });
-      if (type === 'thunder') {
-        if (Math.random() < 0.004) lightning = (10 + Math.random() * 6) | 0;
-        if (lightning > 0) {
-          ctx.globalAlpha = lightning * 0.012;
-          ctx.fillStyle   = 'rgba(255,255,200,1)';
-          ctx.fillRect(0, 0, W, H);
-          lightning--;
-        }
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    if (type === 'snow') {
-      ctx.fillStyle = '#ffffff';
-      particles.forEach(p => {
-        p.phase += 0.025;
-        ctx.globalAlpha = p.alpha;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-        p.y += p.speed;
-        p.x += Math.sin(p.phase) * p.drift;
-        if (p.y > H + 10) { p.y = -10; p.x = Math.random() * W; }
-      });
-      ctx.globalAlpha = 1;
-    }
-
-    if (type === 'fog' || type === 'cloudy') {
-      const col = type === 'fog' ? '200,215,235' : '150,170,210';
-      particles.forEach(p => {
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-        g.addColorStop(0, `rgba(${col},${p.alpha * 4})`);
-        g.addColorStop(1, `rgba(${col},0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < -p.r)    p.x = W + p.r;
-        if (p.x > W + p.r) p.x = -p.r;
-      });
-    }
-
-    if (type === 'clear') {
-      ctx.fillStyle = '#ffffff';
-      particles.forEach(p => {
-        p.phase += p.speed;
-        ctx.globalAlpha = (Math.sin(p.phase) + 1) / 2 * 0.7 + 0.1;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.globalAlpha = 1;
-    }
-
-    rafId = requestAnimationFrame(draw);
-  }
-
-  function setType(t) {
-    if (t === type) return;
-    type = t;
-    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    lightning = 0;
-    spawn();
-    if (type !== 'none') draw();
-    else ctx.clearRect(0, 0, W, H);
-  }
-
-  window.addEventListener('resize', () => { resize(); spawn(); });
-  resize();
-  return { setType };
-})();
-
-/* WMO code → background type */
-function wmoToWeather(code) {
-  if (code === 0)                 return 'clear';
-  if (code <= 3)                  return 'cloudy';
-  if (code === 45 || code === 48) return 'fog';
-  if (code >= 51 && code <= 67)   return 'rain';
-  if (code >= 71 && code <= 77)   return 'snow';
-  if (code >= 80 && code <= 82)   return 'rain';
-  if (code === 85 || code === 86)  return 'snow';
-  if (code >= 95)                 return 'thunder';
-  return 'cloudy';
 }
 
 /* ── CLOCKS ──────────────────────────────────────────────────────── */
