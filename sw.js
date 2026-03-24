@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE = 'weather-v2';
+const CACHE = 'weather-v3';
 const SHELL = ['./'];
 
 /* ── INSTALL: cache the app shell ─────────────────────────────────── */
