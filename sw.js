@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE = 'weather-v3';
+const CACHE = 'weather-v4';
 const SHELL = ['./'];
 
 /* ── INSTALL: cache the app shell ─────────────────────────────────── */
@@ -11,14 +11,15 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 
-/* ── ACTIVATE: remove old caches ──────────────────────────────────── */
+/* ── ACTIVATE: remove old caches, notify clients to reload ────────── */
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll())
+      .then(clients => clients.forEach(c => c.postMessage({ type: 'SW_UPDATED' })))
   );
-  self.clients.claim();
 });
 
 /* ── FETCH strategy ───────────────────────────────────────────────── */
